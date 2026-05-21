@@ -12,12 +12,13 @@
 ```
 
 ### **Bilingual Web Application Penetration Testing Lab (English / العربية)**
+*A local sandbox designed to demonstrate OWASP Top 10 vulnerabilities, exploitation mechanisms, and secure defensive coding practices.*
 
 Developed by **[Gouda Nasralla](https://github.com/GoudaWolfDev)**
 
 [![PHP Version](https://img.shields.io/badge/PHP-%3E%3D%207.4-8892BF?style=for-the-badge&logo=php)](https://www.php.net/)
 [![SQLite Version](https://img.shields.io/badge/SQLite-3-003B57?style=for-the-badge&logo=sqlite)](https://www.sqlite.org/)
-[![Platform](https://img.shields.io/badge/Platform-Kali%20Linux%20%7C%20Linux-green?style=for-the-badge&logo=linux)](https://www.kali.org/)
+[![Platform](https://img.shields.io/badge/Platform-Kali%20Linux%20%7C%20Windows%20%7C%20Linux-green?style=for-the-badge&logo=linux)](https://www.kali.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 ---
@@ -38,12 +39,14 @@ Developed by **[Gouda Nasralla](https://github.com/GoudaWolfDev)**
 ---
 
 ## 📌 Project Overview
-**WolfLab** is a lightweight, self-contained educational login portal simulating an administrative panel. It is built natively on top of **PHP** and **SQLite** to bypass complex database server setups (e.g., MySQL or XAMPP). 
+**WolfLab** is a lightweight, self-contained educational login portal simulating an administrative command panel. It is built natively using **PHP** and **SQLite** to bypass complex database server setups (e.g., MySQL or XAMPP). 
 
-It highlights key OWASP Top 10 vulnerabilities:
+It highlights 5 major vulnerabilities based on the OWASP Top 10 guidelines:
 1. **SQL Injection (SQLi Bypass)** in the login authentication mechanism.
 2. **Sensitive Information Exposure** through verbose database error outputs.
-3. **Insecure Session Management**.
+3. **Direct File Exposure** allowing direct download of the SQLite database file (`users.db`).
+4. **Plaintext Password Storage** showcasing insecure credential storage practices.
+5. **Insecure Session Management** vulnerable to session hijacking and fixation.
 
 ---
 
@@ -51,24 +54,28 @@ It highlights key OWASP Top 10 vulnerabilities:
 ```text
 WolfLab/
 │
-├── login.php          # Login portal containing the SQL Injection flaw
-├── dashboard.php      # Cyberpunk-styled security command panel
-├── logout.php         # Destroys active user sessions and cookies
-├── init_db.php        # Database initialization script
-├── style.css          # Core CSS variables and animations
+├── login.php          # Login portal containing the SQL Injection and Verbose Error flaws
+├── dashboard.php      # Cyberpunk-styled security command panel displaying operator registry
+├── logout.php         # Destroys active user sessions and clears browser cookies
+├── init_db.php        # Database initialization script (creates user table with plaintext accounts)
+├── style.css          # Core CSS variables, animations, and cyberpunk dark theme
+├── SECURITY_REPORT.md # [NEW] Bilingual Comprehensive Security Audit & Vulnerability Remediation Report
 └── README.md          # Project documentation (Bilingual)
 ```
 
 ---
 
-## 🚀 Installation & Local Hosting on Kali Linux
+## 🚀 Installation & Local Hosting
 
 ### 1. Install Dependencies
 Ensure PHP and the SQLite extension are installed:
-```bash
-sudo apt update
-sudo apt install php php-sqlite3 -y
-```
+* **Debian/Ubuntu/Kali Linux**:
+  ```bash
+  sudo apt update
+  sudo apt install php php-sqlite3 -y
+  ```
+* **Windows**:
+  Ensure PHP is installed and the `extension=sqlite3` and `extension=pdo_sqlite` lines are uncommented in your `php.ini` file.
 
 ### 2. Enter the Project Directory
 ```bash
@@ -94,11 +101,8 @@ Open your browser and navigate to:
 ## 🎯 Educational Exploitation Scenarios
 
 ### Scenario 1: Authentication Bypass via SQLi
-
-#### 💡 The Vuln Code:
-Inside [login.php](file:///c:/Users/Gouda/Desktop/lab-pentesting/login.php), variables are directly concatenated inside raw SQL queries:
+Inside [`login.php`](file:///c:/Users/Gouda/Desktop/lab-pentesting/login.php), user input is directly concatenated inside raw SQL queries:
 ```php
-// Unprepared SQL queries allow inputs to interfere with query logic
 $query = "SELECT * FROM users WHERE username = '$username' AND password = '$password'";
 ```
 
@@ -109,30 +113,38 @@ $query = "SELECT * FROM users WHERE username = '$username' AND password = '$pass
    ' OR 1=1-- -
    ```
 3. Leave the password blank and press **Authorize**.
-4. **Why it works**: The `'` terminates the string field, `OR 1=1` forces the statement evaluation to resolve to `TRUE` globally, and `-- -` comments out the subsequent password constraints.
+4. **Why it works**: The `'` terminates the string field, `OR 1=1` forces the statement evaluation to resolve to `TRUE` globally, and `-- -` comments out the subsequent password checks in SQLite.
 
 ---
 
-### Scenario 2: Request Analysis using Burp Suite
-1. Launch **Burp Suite** on Kali Linux.
-2. Under the **Proxy** tab, ensure **Intercept is ON**.
-3. Use the integrated browser (**Open Browser**) and visit `http://localhost:8000/login.php`.
-4. Enter random credentials and capture the `POST` request.
-5. Replace the `username` parameter with: `admin'+OR+'1'='1` and forward the request to see the security dashboard unlock instantly.
+### Scenario 2: Sensitive Information Leakage
+Input an unmatched quote character (e.g. `'` or `)`) into the **Operator Username** field and press **Authorize**.
+* **Result**: The application crashes and exposes the raw SQLite driver exception, showing table schemas, column names, and the exact query template.
 
 ---
 
-## 🛡️ Secure Coding Fix (Remediation)
-Always use **Prepared Statements** to enforce clear boundaries between structure and data:
-```php
-$query = "SELECT * FROM users WHERE username = :username AND password = :password";
-$stmt = $db->prepare($query);
-$stmt->execute([
-    ':username' => $username,
-    ':password' => $password
-]);
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
+### Scenario 3: Database Acquisition
+Since the database file `users.db` is stored inside the web root, an attacker can directly download the entire database bypassing the web interface completely:
+```bash
+curl -O http://localhost:8000/users.db
 ```
+Once downloaded, the attacker can view all plain-text passwords and credentials stored in the `users` table.
+
+---
+
+## 🛡️ Secure Coding Remediation (Patches)
+To protect the application against these threats, you must implement the defensive patterns detailed in the **[SECURITY_REPORT.md](file:///c:/Users/Gouda/Desktop/lab-pentesting/SECURITY_REPORT.md)**:
+
+1. **Prepared Statements**:
+   ```php
+   $query = "SELECT * FROM users WHERE username = :username";
+   $stmt = $db->prepare($query);
+   $stmt->execute([':username' => $username]);
+   $user = $stmt->fetch(PDO::FETCH_ASSOC);
+   ```
+2. **Password Hashing**: Use `password_hash($password, PASSWORD_BCRYPT)` and verify with `password_verify($password, $user['password'])`.
+3. **Error Suppression**: Log errors quietly to server logs (`error_log`) and display a safe generic message.
+4. **Secure Sessions**: Call `session_regenerate_id(true)` upon login and set `HttpOnly` and `Secure` cookie attributes.
 
 ---
 
@@ -146,47 +158,51 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
 ---
 
 ## 📌 فكرة المشروع
-**WolfLab** هو مختبر أمني تفاعلي خفيف الوزن ومستقل يحاكي لوحة تحكم إدارية لشركة أمنية وهمية. يعتمد المشروع على لغة **PHP** وقاعدة بيانات **SQLite** لتبسيط التشغيل دون الحاجة لإعداد خوادم معقدة مثل Apache أو MySQL.
+**WolfLab** هو مختبر أمني تفاعلي خفيف الوزن ومستقل يحاكي لوحة تحكم إدارية لشركة أمنية وهمية. يعتمد المشروع على لغة **PHP** وقاعدة بيانات **SQLite** لتبسيط التشغيل دون الحاجة لإعداد خوادم معقدة.
 
-يهدف المعمل إلى توضيح مخاطر:
-1. **ثغرة حقن قواعد البيانات (SQL Injection - SQLi Bypass)** في صفحة الدخول.
+يبرز المعمل 5 ثغرات أمنية حرجة بناءً على معايير OWASP Top 10 العالمية:
+1. **ثغرة حقن قواعد البيانات (SQL Injection - SQLi Bypass)** لتخطي لوحة تسجيل الدخول.
 2. **عرض تفاصيل الأخطاء الحساسة (Verbose SQL Errors)** للمستخدم النهائي.
-3. **ضعف إدارة الجلسات (Weak Session Management)**.
+3. **الوصول المباشر للملفات الحساسة** بتحميل ملف قاعدة البيانات `users.db` مباشرة.
+4. **تخزين كلمات المرور بنص صريح (Plaintext Passwords)** دون تشفير.
+5. **ضعف إدارة الجلسات (Insecure Sessions)** وقابليتها للاختراق وتثبيت الجلسة (Session Fixation).
 
 ---
 
 ## 📂 هيكلية المشروع
-
 ```text
 WolfLab/
 │
-├── login.php          # صفحة الدخول المصابة بثغرة الـ SQL Injection
-├── dashboard.php      # لوحة التحكم الأمنية (تظهر بعد تخطي الحماية)
-├── logout.php         # سكربت إنهاء الجلسة وتدمير ملفات الكوكيز
-├── init_db.php        # سكربت لتهيئة وإنشاء قاعدة البيانات تلقائياً
-├── style.css          # ملف التنسيق البصري بأسلوب الـ Cyberpunk
+├── login.php          # صفحة الدخول المصابة بثغرة الـ SQL Injection وعرض الأخطاء التفصيلية
+├── dashboard.php      # لوحة التحكم الأمنية (تظهر سجلات النظام وجدول مشغلي النظام)
+├── logout.php         # سكربت إنهاء الجلسة وتدمير ملفات الكوكيز في المتصفح
+├── init_db.php        # سكربت تهيئة وإنشاء قاعدة البيانات وإدراج المستخدمين الافتراضيين
+├── style.css          # ملف التنسيق البصري بأسلوب الـ Cyberpunk المظلم
+├── SECURITY_REPORT.md # [جديد] التقرير الشامل لتحليل الثغرات باللغتين العربية والإنجليزية وطرق تصحيحها
 └── README.md          # وثيقة دليل الاستخدام والتشغيل الحالية
 ```
 
 ---
 
-## 🚀 طريقة التثبيت والتشغيل على Kali Linux
+## 🚀 طريقة التثبيت والتشغيل المحلي
 
 ### 1. تثبيت الحزم المطلوبة
 تأكد من تنصيب محرك PHP والملحق الخاص بـ SQLite:
-```bash
-sudo apt update
-sudo apt install php php-sqlite3 -y
-```
+* **نظام Kali Linux / Debian**:
+  ```bash
+  sudo apt update
+  sudo apt install php php-sqlite3 -y
+  ```
+* **نظام Windows**:
+  تأكد من تنصيب PHP وتفعيل إضافات `extension=sqlite3` و `extension=pdo_sqlite` داخل ملف الإعدادات `php.ini`.
 
-### 2. تحميل وتشغيل المشروع
-انتقل إلى مجلد المشروع داخل نظام تشغيلك:
+### 2. الدخول لمجلد المشروع
 ```bash
 cd lab-pentesting
 ```
 
 ### 3. تهيئة قاعدة البيانات
-قم بتشغيل سكربت التهيئة لإنشاء ملف قاعدة البيانات `users.db` وإدراج حساب الأدمن الافتراضي:
+قم بتشغيل سكربت التهيئة لإنشاء ملف قاعدة البيانات `users.db` وإدراج حسابات الأدمن الافتراضية:
 ```bash
 php init_db.php
 ```
@@ -196,7 +212,7 @@ php init_db.php
 ```bash
 php -S 0.0.0.0:8000
 ```
-الآن، افتح متصفح الويب واذهب إلى العنوان التالي لبدء التحدي:  
+الآن، افتح متصفح الويب واذهب إلى العنوان لبدء التحدي:  
 🔗 **`http://localhost:8000/login.php`**
 
 ---
@@ -204,58 +220,44 @@ php -S 0.0.0.0:8000
 ## 🎯 السيناريوهات التعليمية وتطبيق الاختراق
 
 ### التحدي الأول: تخطي المصادقة عبر SQL Injection
-
-#### 💡 ما المشكلة في الكود؟
-تحدث الثغرة بسبب دمج مدخلات المستخدم مباشرة داخل جملة استعلام SQL دون معالجة أو استخدام استعلامات مجهزة (Prepared Statements):
-
+تحدث الثغرة في [`login.php`](file:///c:/Users/Gouda/Desktop/lab-pentesting/login.php) بسبب دمج مدخلات المستخدم مباشرة داخل الاستعلام:
 ```php
-// ❌ كود مصاب بثغرة أمنية
 $query = "SELECT * FROM users WHERE username = '$username' AND password = '$password'";
 ```
 
-#### 🛠️ طريقة التجاوز (Login Bypass Payload):
-1. في حقل **Operator Username** اكتب المدخل التالي:
+#### 🛠️ خطوات الاختراق:
+1. اذهب لصفحة تسجيل الدخول.
+2. أدخل النص التالي في حقل **Operator Username**:
    ```sql
    ' OR 1=1-- -
    ```
-2. اترك حقل الباسورد فارغاً أو اكتب أي كلمة مرور عشوائية.
-3. اضغط على **Authorize**.
-4. **كيف يعمل الهجوم؟**
-   يقوم الرمز `'` بإغلاق الحقل النصي لاسم المستخدم، بينما يقوم الجزء `OR 1=1` بإجبار الشرط الإجمالي على أن يكون صحيحاً دائماً (True). الجزء الأخير `-- -` يمثل بداية سطر التعليقات في الـ SQL، مما يؤدي إلى إهمال وتجاهل بقية الاستعلام (شرط التحقق من الباسورد).
+3. اترك حقل كلمة المرور فارغاً واضغط **Authorize**.
+4. **كيف يعمل الهجوم؟**: يقوم الرمز `'` بإغلاق حقل اسم المستخدم، وتجبر الجملة `OR 1=1` الاستعلام على إرجاع قيمة صحيحة دائماً (True)، بينما يقوم الرمز `--` بتعطيل وتحويل بقية الاستعلام (شرط التحقق من كلمة المرور) إلى تعليق مهمل.
 
 ---
 
-### التحدي الثاني: فحص الطلبات باستخدام Burp Suite
-1. قم بتشغيل برنامج **Burp Suite** على نظام Kali Linux الخاص بك.
-2. اذهب إلى تبويب **Proxy** ثم قم بتفعيل **Intercept is ON**.
-3. استخدم متصفح بورب المدمج عبر الضغط على **Open Browser** ثم تصفح الرابط: `http://localhost:8000/login.php`.
-4. أدخل أي بيانات خاطئة واضغط على **Authorize**.
-5. ستلاحظ التقاط Burp Suite للطلب من نوع `POST`.
-6. قم بتعديل قيمة المتغير `username` في نافذة الطلب داخل Burp إلى Payload الحقن: `admin'+OR+'1'='1` ثم اضغط على **Forward** لمشاهدة النتيجة الفورية وتخطي الحماية.
+### التحدي الثاني: تسريب البيانات عبر الأخطاء
+أدخل رمزاً غير متطابق مثل `'` أو `)` في حقل اسم المستخدم واضغط **Authorize**.
+* **النتيجة**: يتوقف التطبيق عن العمل ويعرض رسالة الخطأ المباشرة من محرك SQLite والتي توضح الهيكل الداخلي للجداول والأعمدة المستهدفة.
 
 ---
 
-## 🛡️ كيف نقوم بتأمين الكود؟ (Mitigation & Secure Coding)
-
-لتجنب هذه الثغرة الكارثية، يجب استخدام **Prepared Statements** مدعومة بـ **PDO** لفصل البيانات المدخلة عن بنية أمر الاستعلام:
-
-```php
-//  الكود الآمن والمحمي بالكامل
-$query = "SELECT * FROM users WHERE username = :username AND password = :password";
-$stmt = $db->prepare($query);
-$stmt->execute([
-    ':username' => $username,
-    ':password' => $password
-]);
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
+### التحدي الثالث: سحب قاعدة البيانات
+نظراً لتواجد ملف قاعدة البيانات في المجلد الرئيسي للويب، يمكن لأي شخص تحميل الملف بالكامل وقراءة محتوياته فوراً:
+```bash
+curl -O http://localhost:8000/users.db
 ```
+بمجرد تحميل الملف، سيتمكن المهاجم من فتح الجدول وقراءة كلمات المرور النصية المخزنة دون تشفير.
 
 ---
 
-## 👨‍💻 Developed by
-* **Developer Name:** Gouda Nasralla
-* **GitHub Profile:** [@GoudaWolfDev](https://github.com/GoudaWolfDev)
-* **Project Repository:** [WolfLab](https://github.com/GoudaWolfDev/WolfLab)
+## 🛡️ دليل حماية وتأمين الكود البرمجي
+لتأمين هذا التطبيق وسد الثغرات المذكورة، يجب اتباع التعليمات والحلول البرمجية الكاملة الموجودة في ملف **[SECURITY_REPORT.md](file:///c:/Users/Gouda/Desktop/lab-pentesting/SECURITY_REPORT.md)**:
+
+1. **الاستعلامات المجهزة (Prepared Statements)**: لفصل البيانات عن هيكلية الاستعلام البرمجي.
+2. **تشفير كلمات المرور**: باستخدام خوارزمية `BCRYPT` القوية عبر دالة `password_hash()`.
+3. **حظر الأخطاء التفصيلية**: الاكتفاء بعرض رسائل عامة للمستخدم وتسجيل الأخطاء الفعلية محلياً.
+4. **إدارة الجلسات بشكل آمن**: تجديد معرف الجلسة باستخدام `session_regenerate_id(true)` عند تسجيل الدخول الناجح.
 
 ---
-⚡ **WolfLab Security Environment** - Designed for educational simulations. Built with 💻 by Gouda Nasralla.
+*Developed & Designed with 💻 by Gouda Nasralla.*
